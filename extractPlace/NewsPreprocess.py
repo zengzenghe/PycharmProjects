@@ -68,6 +68,10 @@ def merge_result():
         # if index <18:
         #     continue
         # 清楚空字符的影响
+        website = row['website'].strip()
+        channel = row['channel'].strip()
+        category = row['category'].strip()
+
         title = row['title'].strip()
         nation = row['nation'].strip()
         province = row['province'].strip()
@@ -131,6 +135,9 @@ def merge_result():
         orgs_sorted = sorted(orgs_count.items(), key=lambda x: x[1], reverse=True)
 
         txt = 'id\t' + str(index)
+        txt = txt + '\nwebsite\t' + website
+        txt = txt + '\nchannel\t' + channel
+        txt = txt + '\ncategory\t' + category
         txt = txt + '\ntitle\t' + title
         txt = txt + '\ntoken\t' + ' '.join(correct_tokens)
         txt = txt + '\nlabels\t' + ' '.join(predict_lst)
