@@ -6,12 +6,13 @@ import os
 
 
 class New(object):
-    def __init__(self, id, website, channel, category, title, token, labels, place, nerper, nerper_sorted, nerloc,
+    def __init__(self, id, website, channel, category, reason, title, token, labels, place, nerper, nerper_sorted, nerloc,
                  nerloc_index, nerloc_sorted, nerorg, nerorg_index, nerorg_sorted):
         self.id = id
         self.website = website
         self.channel = channel
         self.category = category
+        self.reason = reason
         self.title = title
         self.token = token
         self.labels = labels
@@ -96,6 +97,7 @@ def parse_merge_file(inpurt_file):
     website = ''
     channel = ''
     category = ''
+    reason = ''
     title = ''
     token = ''
     labels = ''
@@ -113,7 +115,7 @@ def parse_merge_file(inpurt_file):
         line = lines[i].strip()
         if line.startswith('id'):
             if i != 0:
-                new = New(id, website, channel, category, title, token, labels, place, nerper, nerper_sorted,
+                new = New(id, website, channel, category, reason, title, token, labels, place, nerper, nerper_sorted,
                           nerloc, nerloc_index, nerloc_sorted, nerorg, nerorg_index, nerorg_sorted)
                 news.append(new)
             id = line[3:]
@@ -124,9 +126,10 @@ def parse_merge_file(inpurt_file):
             channel = line[8:]
         elif line.startswith('category'):
             category = line[9:]
+        elif line.startswith('reason'):
+            reason = line[7:]
         elif line.startswith('title'):
             title = line[6:]
-
         elif line.startswith('token'):
             token = line[6:]
         elif line.startswith('labels'):
@@ -156,7 +159,7 @@ def parse_merge_file(inpurt_file):
             nerorg = line[7:].split(' ')
 
     # last one
-    new = New(id, website, channel, category, title, token, labels, place, nerper,
+    new = New(id, website, channel, category, reason, title, token, labels, place, nerper,
               nerper_sorted, nerloc, nerloc_index, nerloc_sorted, nerorg,
               nerorg_index, nerorg_sorted)
     news.append(new)
@@ -777,6 +780,7 @@ def record_error(new, lst):
     lst.append('website\t' + new.website)
     lst.append('channel\t' + new.channel)
     lst.append('category\t' + new.category)
+    lst.append('reason\t' + new.reason)
     lst.append('title\t' + new.title)
     lst.append('token\t' + new.token)
     lst.append('lables\t' + new.labels)
