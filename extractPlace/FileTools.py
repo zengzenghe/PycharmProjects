@@ -7,9 +7,9 @@ import re
 # 文件处理程序，bert 与 新闻与处理都需要调用相同的函数,保持一致
 def read_xls_data(input_file):
     # 读取指定列
-    df = pd.read_excel(input_file, header=0, index=0, usecols=[0, 1, 3, 4, 5, 6, 7, 8, 9])
+    df = pd.read_excel(input_file, header=0, index=0, usecols=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     # print(df.columns)
-    df.columns = ['website', 'channel', 'title', 'nation', 'province', 'city', 'county', 'reason', 'text']
+    df.columns = ['website', 'channel', 'category', 'title', 'nation', 'province', 'city', 'county', 'reason', 'text']
     # 增加原文src_text列，为以后就错unk字符用
     df['src_text'] = 'null'
     # 输出制行，列
