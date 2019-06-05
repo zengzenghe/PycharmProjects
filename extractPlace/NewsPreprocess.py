@@ -71,6 +71,7 @@ def merge_result():
         website = row['website'].strip()
         channel = row['channel'].strip()
         category = row['category'].strip()
+        reason = row['reason'].strip()
 
         title = row['title'].strip()
         nation = row['nation'].strip()
@@ -138,6 +139,7 @@ def merge_result():
         txt = txt + '\nwebsite\t' + website
         txt = txt + '\nchannel\t' + channel
         txt = txt + '\ncategory\t' + category
+        txt = txt + '\nreason\t' + reason
         txt = txt + '\ntitle\t' + title
         txt = txt + '\ntoken\t' + ' '.join(correct_tokens)
         txt = txt + '\nlabels\t' + ' '.join(predict_lst)
