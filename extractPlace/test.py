@@ -17,7 +17,7 @@ print(a)
 
 b = set()
 b.add(2)
-a | b
+#a | b
 # df = pd.DataFrame(columns=['A', 'B'], data = [[1,2],[3,4]])
 # df['C'] = 'null'
 # print(df)
