@@ -3,6 +3,10 @@ import re
 import pandas as pd
 
 
+lst = []
+a = ' '.join(lst)
+print(len(a))
+
 a = [0,1,2,3,4,5,6]
 print(a[3:6])
 
