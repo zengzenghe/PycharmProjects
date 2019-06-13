@@ -44,39 +44,14 @@ def train():
 
     # 训练评估CRF模型
     print("正在训练评估CRF模型...")
-    crf_train_eval((train_word_lists, train_tag_lists), (test_word_lists, test_tag_lists)
-                   )
-
-
-def test():
-    input_file = '../data/1000_news.xls'
-    input_file = '../data/1050_news.xls'
-    input_file = '../data/3150_news.xls'
-    df = FileTools.read_xls_data(input_file)
-    news_list = []
-    for index, row in df.iterrows():
-        lst = []
-        for v in row['text']:
-            lst.append(v[0])
-        news_list.append(lst)
-
-    crf_model = load_model('./ckpts/crf.pkl')
-    start_time = datetime.now()
-    for i in range(len(news_list)):
-        # if i != 999:
-        #     continue
-        print('index:', i)
-        crf_pred = crf_predict_news(crf_model, news_list[i])
-        save_predict_news(news_list[i], crf_pred, i)
-    end_time = datetime.now()
-    print('time', end_time - start_time)
+    crf_train_eval((train_word_lists, train_tag_lists),
+                   (test_word_lists, test_tag_lists))
 
 
 def main():
     """训练模型，评估结果"""
+    print('start train....')
     # train()
-    """test news"""
-    test()
 
 
 if __name__ == "__main__":
