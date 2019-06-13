@@ -620,7 +620,7 @@ def extract_place(news):
         return predict_place
 
     # ------规则3:强规则，就是 ：在+地名--begin
-    rule_province_code, rule_city_code, rule_county_code = strong_rule(news, max_sent_index=3, max_character_index=200)
+    rule_province_code, rule_city_code, rule_county_code = strong_rule(news, max_sent_index=2, max_character_index=200)
     # rule_province_code, rule_city_code, rule_county_code = 0, 0, 0
     if rule_county_code != 0:
         predict_place['province'] = NewsConst.code2city[rule_province_code]
@@ -648,8 +648,8 @@ def extract_place(news):
     abandon_p_code = get_abandon_province(std_locs)
 
     # 字符索引作影响不是很大
-    loc_sorted_p_count, loc_sorted_city_count, loc_sorted_county_count = extract_place_from_loc(news, 10, 7, 300)
-    org_sorted_p_count, org_sorted_city_count, org_sorted_county_count = extract_place_from_org(news, 10, 7, 300)
+    loc_sorted_p_count, loc_sorted_city_count, loc_sorted_county_count = extract_place_from_loc(news, 10, 6, 300)
+    org_sorted_p_count, org_sorted_city_count, org_sorted_county_count = extract_place_from_org(news, 10, 6, 300)
 
     # 对地名与机构打分。权重，地名权重为1，机构中的权重为0.5
     loc_weight = 1
