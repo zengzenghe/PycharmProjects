@@ -95,10 +95,14 @@ def extract_place_from_org(news, max_length=5, max_sent_index=10, max_character_
 
     code_count = OrderedDict()
     for word in orgs:
+        # word = '北京市海淀区广西医院'
+        # 标准匹配
         include_words = set(re.findall(NewsConst.reg_city2code_place, word))
+        # 包含匹配
         names = re.findall(NewsConst.reg_include_place, word)
 
         for name in names:
+            # 映射后再并集
             include_words = include_words | set(NewsConst.include_place_dic[name])
 
         for include_word in include_words:
@@ -376,6 +380,13 @@ def get_abandon_province(std_locs, news):
         if province_count[p_code] == cnt:
             abandon_p_code.add(p_code)
 
+    # 参考频道
+    channel_province_code = get_channel_province(news)
+    for code in abandon_p_code:
+        if code == channel_province_code:
+            abandon_p_code.remove(code)
+            break
+
     return abandon_p_code
 
 
@@ -546,10 +557,51 @@ def clean_locs(news):
             if word_index_of_sentence + len(loc) == start:
                 index_remove.append(i)
 
-    for i in index_remove:
-        # 根据索引删除元素
-        del news.nerloc_index[i]
-        del news.nerloc[i]
+    if index_remove:
+        update_nerloc = []
+        update_nerloc_index = []
+        # 注意，当len(index_remove) > 1，不能根据索引删除list元素
+        for i in range(len(news.nerloc_index)):
+            if i not in index_remove:
+                update_nerloc.append(news.nerloc[i])
+                update_nerloc_index.append(news.nerloc_index[i])
+
+        news.nerloc = update_nerloc
+        news.nerloc_index = update_nerloc_index
+
+
+# 根据频道获取省份,注意，频道对应的省份一定是唯一的
+def get_channel_province(news):
+    include_words = re.findall(NewsConst.reg_city2code_place, news.channel)
+    if include_words:
+        for include_word in include_words:
+            include_codes = NewsConst.city2code[include_word]
+            if len(include_codes) == 1:
+                p_code = include_codes[0] // 10000 * 10000
+                return p_code
+            else:
+                for include_code in include_codes:
+                    if include_code % 10000 == 0:
+                        return include_code
+
+    # 包含匹配
+    names = re.findall(NewsConst.reg_include_place, news.channel)
+
+    for name in names:
+        include_words.extend(NewsConst.include_place_dic[name])
+
+    channel_province_codes = []
+    for include_word in include_words:
+        include_codes = NewsConst.city2code[include_word]
+        for include_code in include_codes:
+            p_code = include_code // 10000 * 10000
+            channel_province_codes.append(p_code)
+    # 计算排名最高的
+    channel_province_codes.sort(reverse=True)
+    if channel_province_codes:
+        return channel_province_codes[0]
+    else:
+        return 0
 
 
 def extract_place(news):
@@ -603,7 +655,7 @@ def extract_place(news):
     # ------规则4:判断新闻是否存在地名---end
 
     # ------规则5:如果区/县对应的市或者省没有出现，则区/县则被过滤掉(排除直辖市)
-    # 注意：如果新闻中只有一个省，那么不能丢弃 , need to think about channels
+    # 注意：如果新闻中只有一个省，那么不能丢弃；如果丢弃的地点属于XX频道，属于xx，则不丢弃
     abandon_p_code = get_abandon_province(std_locs, news)
 
     # 字符索引作影响不是很大
