@@ -640,11 +640,32 @@ def extract_place(news):
     std_locs.extend(std_org_locs)
     # print(new_locs)precision_p
 
+
     # 强规则优先处理，对省份进行筛选,比例最高的省份需要大于pValue=0.2
     if rule_province_code == 0:
         if not is_exist_place(std_locs):
+            # 当没有
+            pattern = '我市'
+            m = re.search(pattern, str(news.text))
+            print(news.text)
+            if m:
+                print("True")
+            if m:
+                for k, v in NewsConst.standard_place_dic.items():
+                    if k in news.website and len(k) > 1:
+                        include_code = NewsConst.city2code[str(v[0])]
+                    elif k in news.channel and len(k) > 1:
+                        include_code = NewsConst.city2code[str(v[0])]
+
+                p_code = include_code[0] // 10000 * 10000  # 去掉后4位上的编号，映射成省级
+                predict_place['province'] = NewsConst.code2city[p_code]
+                city_code = include_code[0] // 100 * 100  # 去掉后2位上的编号，映射成市级
+                predict_place['city'] = NewsConst.code2city[city_code]
+                predict_place['county'] = NewsConst.code2city[include_code[0]]
+                return predict_place
+            else:
+                return predict_place
             # predict_place = get_null_predict(news)
-            return predict_place
     # ------规则4:判断新闻是否存在地名---end
 
     # ------规则5:如果区/县对应的市或者省没有出现，则区/县则被过滤掉(排除直辖市)
@@ -891,16 +912,16 @@ def result_evaluate(news_lst):
     # with open('result_place_tree.txt', 'w') as f:
     #     f.write('\n'.join(result_place_tree_lst))
 
-    with open('result/badcase.txt', 'w') as f:
+    with open('result/badcase.txt', 'w', encoding='utf-8') as f:
         f.write('\n'.join(bad_case))
 
-    with open('result/error_tp_p', 'w') as f:
+    with open('result/error_tp_p', 'w', encoding='utf-8') as f:
         f.write('\n'.join(error_tp_p))
 
-    with open('result/error_fn_p', 'w') as f:
+    with open('result/error_fn_p', 'w', encoding='utf-8') as f:
         f.write('\n'.join(error_fn_p))
 
-    with open('result/bad_cities.txt', 'w') as f:
+    with open('result/bad_cities.txt', 'w', encoding='utf-8') as f:
         f.write('\n'.join(bad_cities))
 
 
@@ -940,7 +961,7 @@ def save2excel(news_lst):
 
 def main():
     time_begin = datetime.now()
-    input_file = '../data/3150_news_corrected.xls'
+    input_file = '../data/3150_news.xls'
     # input_file = '../data/1000_news.xls'
     # input_file = '../data/News-稿件导出wechat-20190523.xls'
 
