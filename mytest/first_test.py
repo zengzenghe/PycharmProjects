@@ -8,7 +8,7 @@ output = '../output_tmp/3150_news.xls'
 
 lst1 = ['a1', 'a2', 'a3']
 lst2 = ['b1', 'b2', 'b3']
-
+print('~~~~~~~~~~~~~)
 df = pd.DataFrame()  #
 df2 = pd.DataFrame()  #
 citys = ['c1', 'c2', 'c3']
