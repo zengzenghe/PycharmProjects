@@ -15,7 +15,7 @@ def read_xls_data(input_file):
     df.columns = ['website', 'channel', 'category', 'title', 'nation', 'province', 'city', 'county', 'reason', 'text']
     # df.columns = ['website', 'channel', 'category', 'title', 'pubdate', 'nation', 'province', 'city', 'county',
     #               'predictProvince', 'predictCity', 'predictCounty', 'reason', 'text']
-
+    #
     # df.columns = ['website', 'channel', 'category', 'title', 'nation', 'province', 'city', 'county',
     #               'predictProvince', 'predictCity', 'predictCounty', 'reason', 'text']
     # # 增加原文src_text列，为以后就错unk字符用
@@ -26,7 +26,7 @@ def read_xls_data(input_file):
     # 处理缺省值，填充NaN为指定的值,必须要加上inplace，否则不会保存填充的结果
     df.fillna('', inplace=True)
     # print(df.ix[1:5, ['title', 'province', 'city']])
-
+    #
     for index, row in df.iterrows():
         # title加到正文
         # df['text'] = df['title'] + '。' + df['text']
