@@ -2,8 +2,9 @@ import pickle
 import re
 from collections import OrderedDict
 from NewsPlaceExtract import NewsConst
+from NewsPlaceExtract.Evaluate import result_evaluate, save2excel
 import os
-import pandas as pd
+
 from NewsPlaceExtract import FileTools
 from NewsPlaceExtract.News import createNews
 from datetime import datetime
@@ -75,87 +76,6 @@ def get_list(txt):
     lst = re.findall(pattern, txt)
     return lst
 
-
-#
-# def parse_merge_file(inpurt_file):
-#     with open(inpurt_file, 'r', encoding='utf-8') as f:
-#         lines = f.readlines()
-#
-#     news = []
-#     id = ''
-#     website = ''
-#     channel = ''
-#     category = ''
-#     reason = ''
-#     title = ''
-#     token = ''
-#     labels = ''
-#     place = {}
-#     nerper = []
-#     nerper_sorted = []
-#     nerloc = []
-#     nerloc_index = []
-#     nerloc_sorted = []
-#     nerorg = []
-#     nerorg_index = []
-#     nerorg_sorted = []
-#
-#     for i in range(len(lines)):
-#         line = lines[i].strip()
-#         # if line == 'id\t704':
-#         #     print('note')
-#         if line.startswith('id'):
-#             if i != 0:
-#                 new = New(id, website, channel, category, reason, title, token, labels, place, nerper, nerper_sorted,
-#                           nerloc, nerloc_index, nerloc_sorted, nerorg, nerorg_index, nerorg_sorted)
-#                 news.append(new)
-#             id = line[3:]
-#
-#         elif line.startswith('website'):
-#             website = line[8:]
-#         elif line.startswith('channel'):
-#             channel = line[8:]
-#         elif line.startswith('category'):
-#             category = line[9:]
-#         elif line.startswith('reason'):
-#             reason = line[7:]
-#         elif line.startswith('title'):
-#             title = line[6:]
-#         elif line.startswith('token'):
-#             token = line[6:]
-#         elif line.startswith('labels'):
-#             labels = line[7:]
-#         elif line.startswith('place'):
-#             lst = line.split('\t')
-#             place = {}
-#             place['nation'] = lst[1].split(':')[-1]
-#             place['province'] = lst[2].split(':')[-1]
-#             place['city'] = lst[3].split(':')[-1]
-#             place['county'] = lst[4].split(':')[-1]
-#         elif line.startswith('nerper_sorted'):
-#             nerper_sorted = get_list(line[14:])
-#         elif line.startswith('nerper'):
-#             nerper = line[7:].split(' ')
-#         elif line.startswith('nerloc_index'):
-#             nerloc_index = line[13:].split(' ')
-#         elif line.startswith('nerloc_sorted'):
-#             nerloc_sorted = get_list(line[14:])
-#         elif line.startswith('nerloc'):
-#             nerloc = line[7:].split(' ')
-#         elif line.startswith('nerorg_index'):
-#             nerorg_index = line[13:].split(' ')
-#         elif line.startswith('nerorg_sorted'):
-#             nerorg_sorted = get_list(line[14:])
-#         elif line.startswith('nerorg'):
-#             nerorg = line[7:].split(' ')
-#
-#     # last one
-#     new = New(id, website, channel, category, reason, title, token, labels, place, nerper,
-#               nerper_sorted, nerloc, nerloc_index, nerloc_sorted, nerorg,
-#               nerorg_index, nerorg_sorted)
-#     news.append(new)
-#     return news
-#
 
 def extract_place_from_org(news, max_length=5, max_sent_index=10, max_character_index=250):
     # 只取前面5个地名，待优化
@@ -432,7 +352,7 @@ def get_code_score(loc_dic, org_dic, loc_weight=1, org_weight=1):
     return ret
 
 
-def get_abandon_province(std_locs):
+def get_abandon_province(std_locs, news):
     province_count = dict()
     county_count = dict()
     abandon_p_code = set()
@@ -603,6 +523,35 @@ def strong_rule(news, max_sent_index=1, max_character_index=200):
     # 根据loc 与地点 的份加权
 
 
+# 用规则清洗一些地名
+def clean_locs(news):
+    # 1 去掉句式：5月23日电/讯
+    reg_str = '\d{1,2}月\d{1,2}日[电讯]'
+    pattern = re.compile(reg_str)  # 将正则表达式编译成Pattern对象
+    index_remove = []  # 记录被删除的索引
+    for i in range(len(news.nerloc_index)):
+        arr = news.nerloc_index[i].split(':')
+        if len(arr) != 4:
+            break
+        loc = arr[0]
+        sentence_index = int(arr[1])
+        word_index_of_sentence = int(arr[2])
+        if sentence_index > 3:
+            break
+        txt = news.text[sentence_index]
+        # 使用Pattern匹配文本，获得匹配结果，无法匹配时将返回None，必须用search
+        match = pattern.search(txt)
+        if match:
+            start = match.start()
+            if word_index_of_sentence + len(loc) == start:
+                index_remove.append(i)
+
+    for i in index_remove:
+        # 根据索引删除元素
+        del news.nerloc_index[i]
+        del news.nerloc[i]
+
+
 def extract_place(news):
     predict_place = dict()
     predict_place['province'] = ''
@@ -623,8 +572,14 @@ def extract_place(news):
         # predict_place = get_null_predict(news)
         return predict_place
 
+    clean_locs(news)
+
     # ------规则3:强规则，就是 ：在+地名--begin
     rule_province_code, rule_city_code, rule_county_code = strong_rule(news, max_sent_index=2, max_character_index=200)
+    rule_province_code = 0
+    rule_city_code = 0
+    rule_county_code = 0
+
     # rule_province_code, rule_city_code, rule_county_code = 0, 0, 0
     if rule_county_code != 0:
         predict_place['province'] = NewsConst.code2city[rule_province_code]
@@ -649,7 +604,7 @@ def extract_place(news):
 
     # ------规则5:如果区/县对应的市或者省没有出现，则区/县则被过滤掉(排除直辖市)
     # 注意：如果新闻中只有一个省，那么不能丢弃 , need to think about channels
-    abandon_p_code = get_abandon_province(std_locs)
+    abandon_p_code = get_abandon_province(std_locs, news)
 
     # 字符索引作影响不是很大
     loc_sorted_p_count, loc_sorted_city_count, loc_sorted_county_count = extract_place_from_loc(news, 10, 6, 300)
@@ -747,195 +702,6 @@ def extract_place(news):
     predict_place['city'] = city_name
     predict_place['county'] = county_name
     return predict_place
-
-
-def record_result(news, lst):
-    lst.append('id\t' + str(news.id))
-    lst.append('token\t' + '||'.join(news.text))
-
-    tmp_lst = []
-    for v in news.labels:
-        tmp_lst.append(' '.join(v))
-    lst.append('lables\t' + '||'.join(tmp_lst))
-
-    lst.append('place\tnation(国家):' + news.nation + '\tprovince(省):'
-               + news.province + '\tcity(市):' + news.city
-               + '\tcounty(县):' + news.county)
-    lst.append('nerloc\t' + ' '.join(news.nerloc))
-    lst.append('nerorg\t' + ' '.join(news.nerorg))
-    lst.append('predict_place\tnation(国家):null\tprovince(省):' + news.predict_place['province']
-               + '\tcity(市):' + news.predict_place['city']
-               + '\tcounty(县):' + news.predict_place['county'])
-    lst.append('\n')
-
-
-def record_error(news, lst):
-    lst.append('id\t' + str(news.id))
-    lst.append('website\t' + news.website)
-    lst.append('channel\t' + news.channel)
-    lst.append('category\t' + news.category)
-    lst.append('reason\t' + news.reason)
-    lst.append('title\t' + news.title)
-    lst.append('token\t' + '||'.join(news.text))
-
-    tmp_lst = []
-    for v in news.labels:
-        tmp_lst.append(' '.join(v))
-    lst.append('lables\t' + '||'.join(tmp_lst))
-
-    lst.append('place\tnation(国家):' + news.nation + '\tprovince(省):'
-               + news.province + '\tcity(市):' + news.city
-               + '\tcounty(县):' + news.county)
-    lst.append('nerloc\t' + ' '.join(news.nerloc))
-    lst.append('nerloc_index\t' + ' '.join(news.nerloc_index))
-    lst.append('nerorg\t' + ' '.join(news.nerorg))
-    lst.append('nerorg_index\t' + ' '.join(news.nerorg_index))
-    lst.append('predict_place\tnation(国家):null\tprovince(省):' + news.predict_place['province']
-               + '\tcity(市):' + news.predict_place['city']
-               + '\tcounty(县):' + news.predict_place['county'])
-    lst.append('\n')
-
-
-# 评估算法的结果
-def result_evaluate(news_lst):
-    rows = len(news_lst)
-    cnt_p = 0  # 计算省accuracy
-    cnt_p_c = 0  # 计算省市的accuracy用
-    cnt_samples = 0  # 样本中的信息条数
-    cnt_predict_p = 0  # 提取出的信息条数
-    tp_p = 0  # 提取出且省正确数
-    tp_p_c = 0  # 提取出且省市正确数
-
-    result_place_tree_lst = []  # 把地名打印出来
-
-    # error
-    error_tp_p = []
-    error_fn_p = []
-    bad_case = []
-    bad_cities = []
-    for news in news_lst:
-        # if new.id == '139':
-        #     print('note')
-        province = news.province.strip()
-        city = news.city.strip()
-        predict_province = news.predict_place['province']
-        predict_city = news.predict_place['city']
-
-        if province == predict_province:
-            cnt_p += 1
-
-        if province == predict_province and city == predict_city:
-            cnt_p_c += 1
-
-        if province != '':
-            cnt_samples += 1
-            record_result(news, result_place_tree_lst)
-
-        if predict_province != '':
-            cnt_predict_p += 1
-
-        if predict_province == province and predict_province != '':
-            tp_p += 1
-
-        if province == predict_province and city == predict_city and predict_province != '':
-            tp_p_c += 1
-
-        # 记录错误 --begin
-        if predict_province != province and predict_province != '':
-            record_error(news, error_tp_p)
-
-        if predict_province != province and predict_province == '':
-            record_error(news, error_fn_p)
-
-        if predict_province != province and province != '':
-            record_error(news, bad_case)
-
-        if province == predict_province and city != predict_city and predict_province != '':
-            record_error(news, bad_cities)
-            # 记录错误 --end
-    precision_p = tp_p / cnt_predict_p
-    recall_p = tp_p / cnt_samples
-    f1_p = (1 + 1 * 1) * precision_p * recall_p / (1 * 1 * precision_p + recall_p)
-    f05_p = (1 + 0.5 * 0.5) * precision_p * recall_p / (0.5 * 0.5 * precision_p + recall_p)
-
-    precision_p_c = tp_p_c / cnt_predict_p
-    recall_p_c = tp_p_c / cnt_samples
-    f1_p_c = (1 + 1 * 1) * precision_p_c * recall_p_c / (1 * 1 * precision_p_c + recall_p_c)
-    f05_p_c = (1 + 0.5 * 0.5) * precision_p_c * recall_p_c / (0.5 * 0.5 * precision_p_c + recall_p_c)
-
-    print('rows', rows)
-    print('cnt_predict', cnt_predict_p)
-    print('cnt_samples', cnt_samples)
-    print('tp_p', tp_p)
-    print('tp_p_c', tp_p_c)
-
-    print('\n')
-
-    print('precision_p', round(precision_p, 4))
-    print('recall_p', round(recall_p, 4))
-    print('f0.5_p', round(f05_p, 4))
-    print('f1_p', round(f1_p, 4))
-
-    print('\n')
-    print('precision_p_c', round(precision_p_c, 4))
-    print('recall_p_c', round(recall_p_c, 4))
-    print('f0.5_p_c', round(f05_p_c, 4))
-    print('f1_p_c', round(f1_p_c, 4))
-
-    print('\n')
-    accuracy_p = cnt_p / rows
-    print('accuracy_p', round(accuracy_p, 4))
-    accuracy_p_c = cnt_p_c / rows
-    print('accuracy_p_c', round(accuracy_p_c, 4))
-
-    # with open('result_place_tree.txt', 'w') as f:
-    #     f.write('\n'.join(result_place_tree_lst))
-
-    with open('result/badcase.txt', 'w') as f:
-        f.write('\n'.join(bad_case))
-
-    with open('result/error_tp_p', 'w') as f:
-        f.write('\n'.join(error_tp_p))
-
-    with open('result/error_fn_p', 'w') as f:
-        f.write('\n'.join(error_fn_p))
-
-    with open('result/bad_cities.txt', 'w') as f:
-        f.write('\n'.join(bad_cities))
-
-
-def save2excel(news_lst):
-    save_path = '../tmp/tmp.xls'
-    if os.path.exists(save_path):
-        os.remove(save_path)
-    lst_province = []
-    lst_city = []
-    lst_county = []
-    for news in news_lst:
-        if news.predict_place['province'] != '':
-            lst_province.append(news.predict_place['province'])
-        else:
-            lst_province.append('')
-
-        if news.predict_place['city'] != '':
-            lst_city.append(news.predict_place['city'])
-        else:
-            lst_city.append('')
-
-        if news.predict_place['county'] != '':
-            lst_county.append(news.predict_place['county'])
-        else:
-            lst_county.append('')
-
-    print(lst_province[0:10])
-    print(lst_city[0:10])
-    print(lst_county[0:10])
-
-    df = pd.DataFrame()
-    df['province'] = lst_province
-    df['city'] = lst_city
-    df['county'] = lst_county
-    df.to_excel(save_path)
 
 
 def main():
