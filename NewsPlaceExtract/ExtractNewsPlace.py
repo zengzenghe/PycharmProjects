@@ -2,8 +2,9 @@ import pickle
 import re
 from collections import OrderedDict
 from NewsPlaceExtract import NewsConst
+from NewsPlaceExtract.Evaluate import result_evaluate, save2excel
 import os
-import pandas as pd
+
 from NewsPlaceExtract import FileTools
 from NewsPlaceExtract.News import createNews
 from datetime import datetime
@@ -76,87 +77,6 @@ def get_list(txt):
     return lst
 
 
-#
-# def parse_merge_file(inpurt_file):
-#     with open(inpurt_file, 'r', encoding='utf-8') as f:
-#         lines = f.readlines()
-#
-#     news = []
-#     id = ''
-#     website = ''
-#     channel = ''
-#     category = ''
-#     reason = ''
-#     title = ''
-#     token = ''
-#     labels = ''
-#     place = {}
-#     nerper = []
-#     nerper_sorted = []
-#     nerloc = []
-#     nerloc_index = []
-#     nerloc_sorted = []
-#     nerorg = []
-#     nerorg_index = []
-#     nerorg_sorted = []
-#
-#     for i in range(len(lines)):
-#         line = lines[i].strip()
-#         # if line == 'id\t704':
-#         #     print('note')
-#         if line.startswith('id'):
-#             if i != 0:
-#                 new = New(id, website, channel, category, reason, title, token, labels, place, nerper, nerper_sorted,
-#                           nerloc, nerloc_index, nerloc_sorted, nerorg, nerorg_index, nerorg_sorted)
-#                 news.append(new)
-#             id = line[3:]
-#
-#         elif line.startswith('website'):
-#             website = line[8:]
-#         elif line.startswith('channel'):
-#             channel = line[8:]
-#         elif line.startswith('category'):
-#             category = line[9:]
-#         elif line.startswith('reason'):
-#             reason = line[7:]
-#         elif line.startswith('title'):
-#             title = line[6:]
-#         elif line.startswith('token'):
-#             token = line[6:]
-#         elif line.startswith('labels'):
-#             labels = line[7:]
-#         elif line.startswith('place'):
-#             lst = line.split('\t')
-#             place = {}
-#             place['nation'] = lst[1].split(':')[-1]
-#             place['province'] = lst[2].split(':')[-1]
-#             place['city'] = lst[3].split(':')[-1]
-#             place['county'] = lst[4].split(':')[-1]
-#         elif line.startswith('nerper_sorted'):
-#             nerper_sorted = get_list(line[14:])
-#         elif line.startswith('nerper'):
-#             nerper = line[7:].split(' ')
-#         elif line.startswith('nerloc_index'):
-#             nerloc_index = line[13:].split(' ')
-#         elif line.startswith('nerloc_sorted'):
-#             nerloc_sorted = get_list(line[14:])
-#         elif line.startswith('nerloc'):
-#             nerloc = line[7:].split(' ')
-#         elif line.startswith('nerorg_index'):
-#             nerorg_index = line[13:].split(' ')
-#         elif line.startswith('nerorg_sorted'):
-#             nerorg_sorted = get_list(line[14:])
-#         elif line.startswith('nerorg'):
-#             nerorg = line[7:].split(' ')
-#
-#     # last one
-#     new = New(id, website, channel, category, reason, title, token, labels, place, nerper,
-#               nerper_sorted, nerloc, nerloc_index, nerloc_sorted, nerorg,
-#               nerorg_index, nerorg_sorted)
-#     news.append(new)
-#     return news
-#
-
 def extract_place_from_org(news, max_length=5, max_sent_index=10, max_character_index=250):
     # 只取前面5个地名，待优化
     orgs = []
@@ -175,10 +95,14 @@ def extract_place_from_org(news, max_length=5, max_sent_index=10, max_character_
 
     code_count = OrderedDict()
     for word in orgs:
+        # word = '北京市海淀区广西医院'
+        # 标准匹配
         include_words = set(re.findall(NewsConst.reg_city2code_place, word))
+        # 包含匹配
         names = re.findall(NewsConst.reg_include_place, word)
 
         for name in names:
+            # 映射后再并集
             include_words = include_words | set(NewsConst.include_place_dic[name])
 
         for include_word in include_words:
@@ -432,7 +356,7 @@ def get_code_score(loc_dic, org_dic, loc_weight=1, org_weight=1):
     return ret
 
 
-def get_abandon_province(std_locs):
+def get_abandon_province(std_locs, news):
     province_count = dict()
     county_count = dict()
     abandon_p_code = set()
@@ -455,6 +379,13 @@ def get_abandon_province(std_locs):
         # 当区/县 对应 的省出现次数 等于 该省的次数:当出现一个县或区，但是没有出现该城市的市或者省，则丢弃此省份
         if province_count[p_code] == cnt:
             abandon_p_code.add(p_code)
+
+    # 参考频道
+    channel_province_code = get_channel_province(news)
+    for code in abandon_p_code:
+        if code == channel_province_code:
+            abandon_p_code.remove(code)
+            break
 
     return abandon_p_code
 
@@ -603,6 +534,76 @@ def strong_rule(news, max_sent_index=1, max_character_index=200):
     # 根据loc 与地点 的份加权
 
 
+# 用规则清洗一些地名
+def clean_locs(news):
+    # 1 去掉句式：5月23日电/讯
+    reg_str = '\d{1,2}月\d{1,2}日[电讯]'
+    pattern = re.compile(reg_str)  # 将正则表达式编译成Pattern对象
+    index_remove = []  # 记录被删除的索引
+    for i in range(len(news.nerloc_index)):
+        arr = news.nerloc_index[i].split(':')
+        if len(arr) != 4:
+            break
+        loc = arr[0]
+        sentence_index = int(arr[1])
+        word_index_of_sentence = int(arr[2])
+        if sentence_index > 3:
+            break
+        txt = news.text[sentence_index]
+        # 使用Pattern匹配文本，获得匹配结果，无法匹配时将返回None，必须用search
+        match = pattern.search(txt)
+        if match:
+            start = match.start()
+            if word_index_of_sentence + len(loc) == start:
+                index_remove.append(i)
+
+    if index_remove:
+        update_nerloc = []
+        update_nerloc_index = []
+        # 注意，当len(index_remove) > 1，不能根据索引删除list元素
+        for i in range(len(news.nerloc_index)):
+            if i not in index_remove:
+                update_nerloc.append(news.nerloc[i])
+                update_nerloc_index.append(news.nerloc_index[i])
+
+        news.nerloc = update_nerloc
+        news.nerloc_index = update_nerloc_index
+
+
+# 根据频道获取省份,注意，频道对应的省份一定是唯一的
+def get_channel_province(news):
+    include_words = re.findall(NewsConst.reg_city2code_place, news.channel)
+    if include_words:
+        for include_word in include_words:
+            include_codes = NewsConst.city2code[include_word]
+            if len(include_codes) == 1:
+                p_code = include_codes[0] // 10000 * 10000
+                return p_code
+            else:
+                for include_code in include_codes:
+                    if include_code % 10000 == 0:
+                        return include_code
+
+    # 包含匹配
+    names = re.findall(NewsConst.reg_include_place, news.channel)
+
+    for name in names:
+        include_words.extend(NewsConst.include_place_dic[name])
+
+    channel_province_codes = []
+    for include_word in include_words:
+        include_codes = NewsConst.city2code[include_word]
+        for include_code in include_codes:
+            p_code = include_code // 10000 * 10000
+            channel_province_codes.append(p_code)
+    # 计算排名最高的
+    channel_province_codes.sort(reverse=True)
+    if channel_province_codes:
+        return channel_province_codes[0]
+    else:
+        return 0
+
+
 def extract_place(news):
     predict_place = dict()
     predict_place['province'] = ''
@@ -623,8 +624,14 @@ def extract_place(news):
         # predict_place = get_null_predict(news)
         return predict_place
 
+    clean_locs(news)
+
     # ------规则3:强规则，就是 ：在+地名--begin
     rule_province_code, rule_city_code, rule_county_code = strong_rule(news, max_sent_index=2, max_character_index=200)
+    rule_province_code = 0
+    rule_city_code = 0
+    rule_county_code = 0
+
     # rule_province_code, rule_city_code, rule_county_code = 0, 0, 0
     if rule_county_code != 0:
         predict_place['province'] = NewsConst.code2city[rule_province_code]
@@ -640,48 +647,11 @@ def extract_place(news):
     std_locs.extend(std_org_locs)
     # print(new_locs)precision_p
 
-    # 如果新闻中没有地点，则考虑匹配我市|市委|全市，匹配成功则提取站点或频道中的地点
-    if len(std_locs) == 0:
-        # 当没有
-        pattern = '我市|市委|全市'
-        m = re.search(pattern, str(news.text))
-        print(news.text)
-        if m:
-            print("True")
-        # if m:
-        #     for k, v in NewsConst.standard_place_dic.items():
-        #         if k in news.website and len(k) > 1:
-        #             include_code = NewsConst.city2code[str(v[0])]
-        #         elif k in news.channel and len(k) > 1:
-        #             include_code = NewsConst.city2code[str(v[0])]
-        if m:
-            name = []
-            if len(name) == 0:
-                name = re.findall(NewsConst.reg_include_place, news.website)
-            if len(name) == 0:
-                name = re.findall(NewsConst.reg_include_place, news.channel)
-            if len(name) != 0:
-                include_code = NewsConst.city2code[NewsConst.standard_place_dic[name[0]][0]]
-                p_code = include_code[0] // 10000 * 10000  # 去掉后4位上的编号，映射成省级
-                predict_place['province'] = NewsConst.code2city[p_code]
-                if include_code[0] % 10000 != 0:
-                    city_code = include_code[0] // 100 * 100  # 去掉后2位上的编号，映射成市级
-                    predict_place['city'] = NewsConst.code2city[city_code]
-                    if include_code[0] % 100 != 0:
-                        predict_place['county'] = NewsConst.code2city[include_code[0]]
-            print(predict_place)
-            return predict_place
-        else:
-            return predict_place
-
-
     # 强规则优先处理，对省份进行筛选,比例最高的省份需要大于pValue=0.2
     if rule_province_code == 0:
         if not is_exist_place(std_locs):
-            return predict_place
             # predict_place = get_null_predict(news)
-
-
+            return predict_place
     # ------规则4:判断新闻是否存在地名---end
 
     # ------规则5:如果区/县对应的市或者省没有出现，则区/县则被过滤掉(排除直辖市)
