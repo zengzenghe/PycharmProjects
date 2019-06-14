@@ -650,19 +650,26 @@ def extract_place(news):
             print(news.text)
             if m:
                 print("True")
+            # if m:
+            #     for k, v in NewsConst.standard_place_dic.items():
+            #         if k in news.website and len(k) > 1:
+            #             include_code = NewsConst.city2code[str(v[0])]
+            #         elif k in news.channel and len(k) > 1:
+            #             include_code = NewsConst.city2code[str(v[0])]
             if m:
-                for k, v in NewsConst.standard_place_dic.items():
-                    if k in news.website and len(k) > 1:
-                        include_code = NewsConst.city2code[str(v[0])]
-                    elif k in news.channel and len(k) > 1:
-                        include_code = NewsConst.city2code[str(v[0])]
-
-                p_code = include_code[0] // 10000 * 10000  # 去掉后4位上的编号，映射成省级
-                predict_place['province'] = NewsConst.code2city[p_code]
-                city_code = include_code[0] // 100 * 100  # 去掉后2位上的编号，映射成市级
-                predict_place['city'] = NewsConst.code2city[city_code]
-                predict_place['county'] = NewsConst.code2city[include_code[0]]
-                return predict_place
+                name = []
+                if len(name) == 0:
+                    name = re.findall(NewsConst.reg_include_place, news.website)
+                if len(name) == 0:
+                    name = re.findall(NewsConst.reg_include_place, news.channel)
+                if len(name) != 0:
+                    include_code = NewsConst.city2code[NewsConst.standard_place_dic[name[0]][0]]
+                    p_code = include_code[0] // 10000 * 10000  # 去掉后4位上的编号，映射成省级
+                    predict_place['province'] = NewsConst.code2city[p_code]
+                    city_code = include_code[0] // 100 * 100  # 去掉后2位上的编号，映射成市级
+                    predict_place['city'] = NewsConst.code2city[city_code]
+                    predict_place['county'] = NewsConst.code2city[include_code[0]]
+                    return predict_place
             else:
                 return predict_place
             # predict_place = get_null_predict(news)
