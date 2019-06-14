@@ -16,6 +16,10 @@ def load_model(file_name):
     return model
 
 
+model_path = 'model/crf.pkl'
+model_crf = load_model(model_path)
+
+
 # 对省份进行筛选，参数需要传（addList:[地点名]，city2code，code2city，pValue：阈值默认0.2）
 def get_threshold_province(std_locs, pValue=0.2):  # addList为匹配后的地名list,pValue:大于阈值返回list，包含地名
     error = []
@@ -900,26 +904,26 @@ def result_evaluate(news_lst):
         f.write('\n'.join(bad_cities))
 
 
-def save2excel(news):
+def save2excel(news_lst):
     save_path = '../tmp/tmp.xls'
     if os.path.exists(save_path):
         os.remove(save_path)
     lst_province = []
     lst_city = []
     lst_county = []
-    for new in news:
-        if new.predict_place['province'] != 'null':
-            lst_province.append(new.predict_place['province'])
+    for news in news_lst:
+        if news.predict_place['province'] != '':
+            lst_province.append(news.predict_place['province'])
         else:
             lst_province.append('')
 
-        if new.predict_place['city'] != 'null':
-            lst_city.append(new.predict_place['city'])
+        if news.predict_place['city'] != '':
+            lst_city.append(news.predict_place['city'])
         else:
             lst_city.append('')
 
-        if new.predict_place['county'] != 'null':
-            lst_county.append(new.predict_place['county'])
+        if news.predict_place['county'] != '':
+            lst_county.append(news.predict_place['county'])
         else:
             lst_county.append('')
 
@@ -937,7 +941,8 @@ def save2excel(news):
 def main():
     time_begin = datetime.now()
     input_file = '../data/3150_news_corrected.xls'
-    input_file = '../data/1000_news.xls'
+    # input_file = '../data/1000_news.xls'
+    # input_file = '../data/News-稿件导出wechat-20190523.xls'
 
     # 去掉 留言信息等非新闻文本
     clean = []
@@ -948,12 +953,10 @@ def main():
                  402, 403, 405, 416, 470, 471, 479, 487, 505]
 
     df = FileTools.read_xls_data(input_file)
-    model_path = '../ckpts/crf.pkl'
-    model_crf = load_model(model_path)
     news_lst = []
     for index, row in df.iterrows():
         print('index: ' + str(index))
-        # if index != 39:
+        # if index != 142 and index != 444 and index != 912:
         #     continue
 
         if index in clean:
@@ -968,6 +971,10 @@ def main():
         news_lst.append(news)
 
     result_evaluate(news_lst)
+
+    is_save2excel = False
+    if is_save2excel:
+        save2excel(news_lst)
 
     print('program run time: ' + str(datetime.now() - time_begin))
 
