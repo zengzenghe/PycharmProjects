@@ -570,6 +570,40 @@ def clean_locs(news):
         news.nerloc_index = update_nerloc_index
 
 
+# 根据频道的省市区，获取对应预测
+def get_channel_predict(news):
+    include_words = re.findall(NewsConst.reg_city2code_place, news.channel)
+    if include_words:
+        for include_word in include_words:
+            include_codes = NewsConst.city2code[include_word]
+            if len(include_codes) == 1:
+                p_code = include_codes[0] // 10000 * 10000
+                return p_code
+            else:
+                for include_code in include_codes:
+                    if include_code % 10000 == 0:
+                        return include_code
+
+    # 包含匹配
+    names = re.findall(NewsConst.reg_include_place, news.channel)
+
+    for name in names:
+        include_words.extend(NewsConst.include_place_dic[name])
+
+    channel_province_codes = []
+    for include_word in include_words:
+        include_codes = NewsConst.city2code[include_word]
+        for include_code in include_codes:
+            p_code = include_code // 10000 * 10000
+            channel_province_codes.append(p_code)
+    # 计算排名最高的
+    channel_province_codes.sort(reverse=True)
+    if channel_province_codes:
+        return channel_province_codes[0]
+    else:
+        return 0
+
+
 # 根据频道获取省份,注意，频道对应的省份一定是唯一的
 def get_channel_province(news):
     include_words = re.findall(NewsConst.reg_city2code_place, news.channel)
@@ -604,6 +638,34 @@ def get_channel_province(news):
         return 0
 
 
+# 如果新闻中没有地点，则考虑匹配我市|市委|全市，匹配成功则提取站点或频道中的地点
+# 存在问题，需要考虑 一个市区对应多个市
+def get_local_place(news):
+    p_code = 0
+    city_code = 0
+    county_code = 0
+
+    pattern = '我省|本省|全省|省委|我市|本市|全市|市委|我区|本区|全区|区委|我县|本县|全县|县委|主城区'
+    pattern = '我省|本省|我市|本市|我县|本县|主城区'
+    m = re.search(pattern, str(news.text))
+    if m:
+        name = []
+        if len(name) == 0:
+            name = re.findall(NewsConst.reg_include_place, news.website)
+        if len(name) == 0:
+            name = re.findall(NewsConst.reg_include_place, news.channel)
+        if len(name) != 0:
+            # 需要优化，考虑多个地址
+            include_code = NewsConst.city2code[NewsConst.standard_place_dic[name[0]][0]]
+            p_code = include_code[0] // 10000 * 10000  # 去掉后4位上的编号，映射成省级
+            if include_code[0] % 10000 != 0:
+                city_code = include_code[0] // 100 * 100  # 去掉后2位上的编号，映射成市级
+                if include_code[0] % 100 != 0:
+                    county_code = include_code
+
+    return p_code, city_code, county_code
+
+
 def extract_place(news):
     predict_place = dict()
     predict_place['province'] = ''
@@ -624,20 +686,23 @@ def extract_place(news):
         # predict_place = get_null_predict(news)
         return predict_place
 
+    # 用规则清洗一些地名
     clean_locs(news)
 
     # ------规则3:强规则，就是 ：在+地名--begin
-    rule_province_code, rule_city_code, rule_county_code = strong_rule(news, max_sent_index=2, max_character_index=200)
-    rule_province_code = 0
-    rule_city_code = 0
-    rule_county_code = 0
+    # rule_province_code, rule_city_code, rule_county_code = strong_rule(news, max_sent_index=2, max_character_index=200)
+    # ------规则3.2：# 如果新闻中没有地点，则考虑匹配我市|本市|市委|全市，匹配成功则提取站点或频道中的地点----begin
+    rule_province_code, rule_city_code, rule_county_code = get_local_place(news)
+    # rule_province_code = 0
+    # rule_city_code = 0
+    # rule_county_code = 0
 
     # rule_province_code, rule_city_code, rule_county_code = 0, 0, 0
-    if rule_county_code != 0:
-        predict_place['province'] = NewsConst.code2city[rule_province_code]
-        predict_place['city'] = NewsConst.code2city[rule_city_code]
-        predict_place['county'] = NewsConst.code2city[rule_county_code]
-        return predict_place
+    # if rule_county_code != 0:
+    #     predict_place['province'] = NewsConst.code2city[rule_province_code]
+    #     predict_place['city'] = NewsConst.code2city[rule_city_code]
+    #     predict_place['county'] = NewsConst.code2city[rule_county_code]
+    #     return predict_place
     # ------规则3:强规则，就是 ：在+地名--end
 
     # ------规则4:判断新闻是否存在地名---begin
@@ -654,7 +719,11 @@ def extract_place(news):
             return predict_place
     # ------规则4:判断新闻是否存在地名---end
 
-    # ------规则5:如果区/县对应的市或者省没有出现，则区/县则被过滤掉(排除直辖市)
+
+
+    # ------规则5：# 如果新闻中没有地点，则考虑匹配我市|本市|市委|全市，匹配成功则提取站点或频道中的地点----end
+
+    # ------规则6:如果区/县对应的市或者省没有出现，则区/县则被过滤掉(排除直辖市)
     # 注意：如果新闻中只有一个省，那么不能丢弃；如果丢弃的地点属于XX频道，属于xx，则不丢弃
     abandon_p_code = get_abandon_province(std_locs, news)
 
@@ -758,7 +827,8 @@ def extract_place(news):
 
 def main():
     time_begin = datetime.now()
-    input_file = '../data/3150_news_corrected.xls'
+    input_file = '../data/News-merge_news1_news2-20190523.xls'
+    input_file = '../data/News-weibo-20190523.xls'
     # input_file = '../data/1000_news.xls'
     # input_file = '../data/News-稿件导出wechat-20190523.xls'
 
@@ -774,7 +844,7 @@ def main():
     news_lst = []
     for index, row in df.iterrows():
         print('index: ' + str(index))
-        # if index != 142 and index != 444 and index != 912:
+        # if index != 293:
         #     continue
 
         if index in clean:
@@ -790,7 +860,7 @@ def main():
 
     result_evaluate(news_lst)
 
-    is_save2excel = False
+    is_save2excel = True
     if is_save2excel:
         save2excel(news_lst)
 
