@@ -645,7 +645,7 @@ def get_local_place(news):
     city_code = 0
     county_code = 0
 
-    pattern = '我省|本省|全省|省委|我市|本市|全市|市委|我区|本区|全区|区委|我县|本县|全县|县委|主城区'
+    # pattern = '我省|本省|全省|省委|我市|本市|全市|市委|我区|本区|全区|区委|我县|本县|全县|县委|主城区'
     pattern = '我省|本省|我市|本市|我县|本县|主城区'
     m = re.search(pattern, str(news.text))
     if m:
