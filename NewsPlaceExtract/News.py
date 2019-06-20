@@ -16,7 +16,8 @@ class News(object):
     def __init__(self, id, website, channel, category, title,
                  nation, province, city, county,
                  reason, text, labels,
-                 nerloc, nerloc_index, nerorg, nerorg_index):
+                 nerloc, nerloc_index, nerorg, nerorg_index,
+                 checkDetails):
         self.id = id
         self.website = website
         self.channel = channel
@@ -40,9 +41,13 @@ class News(object):
         # 算法预测的结果，省/市/区
         self.predict_place = {}
 
+        # test用
+        self.checkDetails = checkDetails
 
-# 从txt_predict中找出loc
-def extract_ner(token_lst, predict_lst, begin_str, end_str):
+    # 从txt_predict中找出loc
+
+
+def extract_entity(token_lst, predict_lst, begin_str, end_str):
     # 记录句子的位置
     # sentence_index = 0  # 保存句子的索引
     # sentence_index_tmp = 1
@@ -79,7 +84,7 @@ def extract_ner(token_lst, predict_lst, begin_str, end_str):
 
 
 # 从txt_predict中找出loc，带word 索引，句子索引
-def extract_ner_index(sents, predict_lst, begin_str, end_str):
+def extract_entity_index(sents, predict_lst, begin_str, end_str):
     # 记录句子的位置
     word_index = -1  # 保存字符的索引
     word_index_of_content = 0  # loc的开始字符索引
@@ -87,12 +92,12 @@ def extract_ner_index(sents, predict_lst, begin_str, end_str):
     word_index_of_sentence = 0  # loc在句的开始索引
     index = 0  # 记录loc中前一个字符的位置
 
-    locs_index = []
-    locs = []
+    entities_index = []
+    entities = []
 
     for i in range(len(sents)):
         # 组成loc的字符
-        loc_character = ''
+        entity_character = ''
         sentence_index = i
         words = list(sents[i])
         # if predict_lst[i].count('B-ORG') > 1 and begin_str == 'B-ORG':
@@ -100,27 +105,27 @@ def extract_ner_index(sents, predict_lst, begin_str, end_str):
         for j in range(len(words)):
             word_index += 1
             if predict_lst[i][j] == begin_str:
-                if loc_character != '':
+                if entity_character != '':
                     # 地狱名:句子索引:当前句子字符索引：全文字符索引
-                    locs_index.append(loc_character + ':' + str(sentence_index) + ':'
+                    entities_index.append(entity_character + ':' + str(sentence_index) + ':'
                                       + str(word_index_of_sentence) + ':' + str(word_index_of_content))
-                    locs.append(loc_character)
-                loc_character = words[j]
+                    entities.append(entity_character)
+                entity_character = words[j]
                 word_index_of_content = word_index
                 word_index_of_sentence = j
                 index = j
 
             elif predict_lst[i][j].endswith(end_str) and index == j - 1:
-                loc_character = loc_character + words[j]
+                entity_character = entity_character + words[j]
                 index = j
 
-        if loc_character != '':
+        if entity_character != '':
             # 地狱名:句子索引:当前句子字符索引：全文字符索引
-            locs_index.append(loc_character + ':' + str(sentence_index) + ':'
+            entities_index.append(entity_character + ':' + str(sentence_index) + ':'
                               + str(word_index_of_sentence) + ':' + str(word_index_of_content))
-            locs.append(loc_character)
+            entities.append(entity_character)
 
-    return locs, locs_index
+    return entities, entities_index
 
 
 def extract_ner_index2(token_lst, predict_lst, begin_str, end_str):
@@ -194,12 +199,18 @@ def createNews(index, row, pred_tags):
     if county == '未知':
         county = ''
 
-    ner_locs, ner_locs_index = extract_ner_index(row['text'], pred_tags, 'B-LOC', 'LOC')
-    ner_orgs, ner_orgs_index = extract_ner_index(row['text'], pred_tags, 'B-ORG', 'ORG')
+    ner_locs, ner_locs_index = extract_entity_index(row['text'], pred_tags, 'B-LOC', 'LOC')
+    ner_orgs, ner_orgs_index = extract_entity_index(row['text'], pred_tags, 'B-ORG', 'ORG')
 
+    for str_org in ner_orgs_index:
+        ner_orgs.append(str_org.split(':')[0])
+
+    # 测试专用
+    checkDetails = row['checkDetails'].strip()
     news = News(index, website, channel, category, title,
                 nation, province, city, county,
                 reason, row['text'], pred_tags,
-                ner_locs, ner_locs_index, ner_orgs, ner_orgs_index)
+                ner_locs, ner_locs_index, ner_orgs, ner_orgs_index,
+                checkDetails)
 
     return news
