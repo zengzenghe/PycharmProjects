@@ -87,6 +87,15 @@ with open(place_code_path, 'r', encoding='utf-8') as f:
 
 reg_city2code_place = create_place_reg(city2code, min_length=2)
 
+# 省简称，channel参考可使用
+province_abbreviation_dic = dict()
+province_abbreviation_path = 'conf/provinceAbbreviation.txt'
+with open(province_abbreviation_path, 'r', encoding='utf-8') as f:
+    for line in f:
+        line = line.strip()
+        arr = line.split('\t')
+        province_abbreviation_dic[arr[0]] = arr[1]
+
 # 城市简称 映射 城市全称,一个简称可能对应多个
 standard_place_dic = dict()
 std_place_dic_path = 'conf/standard_place_dic.txt'
@@ -133,7 +142,8 @@ with open(major_department_path, 'r', encoding='utf-8') as f:
     major_department_set = set([name.strip() for name in f])
 
 # 对直辖市的处理
-municipality = ['北京市', '重庆市', '天津市', '上海市']
+municipality_names = ['北京市', '上海市', '重庆市', '天津市']
+municipality_codes = [110000, 310000, 500000, 120000]
 
 if __name__ == '__main__':
     file_path = 'conf/worldCity_dic.txt'
