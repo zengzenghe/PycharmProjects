@@ -158,7 +158,7 @@ def result_evaluate(news_lst):
 
 
 def save2excel(news_lst):
-    save_path = '../tmp/tmp.xls'
+    save_path = 'result/predict_result.xls'
     if os.path.exists(save_path):
         os.remove(save_path)
     lst_province = []
@@ -189,3 +189,5 @@ def save2excel(news_lst):
     df['city'] = lst_city
     df['county'] = lst_county
     df.to_excel(save_path)
+
+
