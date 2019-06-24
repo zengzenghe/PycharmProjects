@@ -20,7 +20,7 @@ class Metrics(object):
         self.correct_tags_number = self.count_correct_tags()
         self.predict_tags_counter = Counter(self.predict_tags)
         self.golden_tags_counter = Counter(self.golden_tags)
-        print("hello")
+
         # 计算精确率
         self.precision_scores = self.cal_precision()
 
